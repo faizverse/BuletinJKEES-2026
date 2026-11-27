@@ -146,16 +146,10 @@ footer a{color:var(--cream)}
 .rd-side{position:absolute;top:50%;transform:translateY(-50%);z-index:2;font-size:28px!important;padding:14px 16px!important;border-radius:50%!important;background:rgba(16,36,31,.7)!important}
 .rd-side[data-prev]{left:14px}.rd-side[data-next]{right:14px}
 .rd.zoomed .rd-side{display:none}
-.rd-grid{position:absolute;inset:0;z-index:5;background:#10241f;overflow:auto;padding:12px 16px 32px}
-.rd-grid[hidden]{display:none}
-.rd-grid-in{max-width:1120px;margin:0 auto}
-.rd-grid h3{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--sand);margin:22px 0 10px}
-.rd-grid ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
-.rd-grid a{display:block;text-decoration:none;color:var(--cream);font-size:13px;text-align:center;border-radius:6px;padding:4px}
-.rd-grid a img{display:block;width:100%;height:auto;border-radius:3px;background:#2a4a42}
-.rd-grid a span{display:block;margin-top:4px}
-.rd-grid a.on{outline:3px solid var(--yellow)}
 @media (max-width:899px){.rd-side{display:none}.rd-title{display:none}.rd-top{justify-content:space-between}}
 @media (max-width:380px){.rd button,.rd a.rd-b{padding:8px 10px;font-size:13px}}
 .fbf{margin-top:12px!important}
 .rd-on .bar{display:none}
+.rd.fit .rd-stage{touch-action:pan-y;cursor:default;user-select:auto;-webkit-user-select:auto}
+.rd.fit .rd-view{display:block;overflow-y:auto;text-align:center;padding:24px 0 40px;overscroll-behavior:contain}
+.rd.fit .rd-page{display:inline-block;vertical-align:top}

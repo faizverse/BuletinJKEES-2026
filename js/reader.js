@@ -1,24 +1,34 @@
 /* Buletin JKEES 2026: the page reader.
    Opens over the page from any link to #ms-N (N = 1..55). Phone: one page at a time, swipe, pinch or double-tap
    to zoom. Computer (wide screens): two-page spreads (1, 2–3, 4–5 … 54–55), arrow keys, click to zoom.
+   Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser).
    Loads only the pages on screen and the next/previous ones. */
 (function () {
   var B = window.BULETIN;
   var R = document.getElementById('reader');
   if (!B || !R) return;
-  var N = B.pages, RATIO = 1600 / 2263;
+  var N = B.pages, RATIO = 1600 / 2263, ZOOM = 1.6, ZMAX = 3, FITMAX = 960;
   var stage = R.querySelector('.rd-stage');
   var view = R.querySelector('.rd-view');
   var count = R.querySelector('.rd-count');
   var title = R.querySelector('.rd-title');
-  var grid = R.querySelector('.rd-grid');
-  var gridBtn = R.querySelector('[data-grid]');
   var prevBtns = R.querySelectorAll('[data-prev]');
   var nextBtns = R.querySelectorAll('[data-next]');
-  var page = 1, spread = false, isOpen = false, scrollBack = 0, focusBack = null, gridBuilt = false;
+  var viewBtn = R.querySelector('[data-view]');
+  var page = 1, spread = false, isOpen = false, scrollBack = 0, focusBack = null;
+  var single = false; // the reader's choice of one page at a time on wide screens
+  try { single = localStorage.getItem('buletin-view') === '1'; } catch (err) {}
   var zoom = { s: 1, x: 0, y: 0 };
 
-  function useSpread() { return window.innerWidth >= 900 && window.innerWidth > window.innerHeight * 1.1; }
+  function wide() { return window.innerWidth >= 900 && window.innerWidth > window.innerHeight * 1.1; }
+  function useSpread() { return wide() && !single; }
+  // one page on a wide screen: fit the page to the width and scroll down it (no click-zoom)
+  function useFit() { return wide() && single; }
+  var fit = false;
+  function setViewBtn() {
+    viewBtn.hidden = !wide();
+    viewBtn.textContent = single ? 'Paparan 2 halaman' : 'Paparan 1 halaman';
+  }
   function pagesFor(p) {
     if (!spread || p === 1) return [p];
     var left = p % 2 === 0 ? p : p - 1;
@@ -29,7 +39,7 @@
 
   function setZoom(s, x, y) {
     var w = stage.clientWidth, h = stage.clientHeight;
-    s = Math.max(1, Math.min(4, s));
+    s = Math.max(1, Math.min(ZMAX, s));
     var mx = (w * (s - 1)) / 2, my = (h * (s - 1)) / 2;
     zoom.s = s;
     zoom.x = s === 1 ? 0 : Math.max(-mx, Math.min(mx, x));
@@ -52,7 +62,7 @@
 
   function layout() {
     var w = stage.clientWidth, h = stage.clientHeight, imgs = view.querySelectorAll('img');
-    var pw = Math.min(h * RATIO, w / imgs.length);
+    var pw = fit ? Math.min(w - 160, FITMAX) : Math.min(h * RATIO, w / imgs.length);
     Array.prototype.forEach.call(imgs, function (im) {
       im.style.width = Math.floor(pw) + 'px';
       im.style.height = Math.floor(pw / RATIO) + 'px';
@@ -62,7 +72,7 @@
   function preload(p) {
     pagesFor(p).forEach(function (n) {
       var im = new Image();
-      im.sizes = spread ? '50vw' : '100vw';
+      im.sizes = fit ? FITMAX + 'px' : spread ? '50vw' : '100vw';
       im.srcset = B.img(n, 800) + ' 800w, ' + B.img(n, 1600) + ' 1600w';
       im.src = B.img(n, 800);
     });
@@ -70,6 +80,9 @@
 
   function render() {
     spread = useSpread();
+    fit = useFit();
+    R.classList.toggle('fit', fit);
+    setViewBtn();
     var ps = pagesFor(page);
     page = ps[0];
     view.innerHTML = '';
@@ -79,13 +92,15 @@
       im.setAttribute('data-n', n);
       im.alt = label(n);
       im.decoding = 'async';
-      im.sizes = ps.length > 1 ? '50vw' : '100vw';
+      im.sizes = fit ? FITMAX + 'px' : ps.length > 1 ? '50vw' : '100vw';
       im.srcset = B.img(n, 800) + ' 800w, ' + B.img(n, 1600) + ' 1600w';
       im.src = B.img(n, 800);
       view.appendChild(im);
     });
     setZoom(1, 0, 0);
+    if (fit) view.style.transform = '';
     layout();
+    view.scrollTop = 0;
     var last = ps[ps.length - 1];
     count.textContent = (ps.length > 1 ? ps[0] + '–' + last : ps[0]) + ' / ' + N;
     title.textContent = ps.map(function (n) { return B.titles[n]; })
@@ -110,13 +125,11 @@
       isOpen = true;
       R.querySelector('[data-close]').focus();
     }
-    closeGrid();
     go(p);
   }
   function close() {
     if (!isOpen) return;
     isOpen = false;
-    closeGrid();
     R.hidden = true;
     view.innerHTML = '';
     document.documentElement.classList.remove('rd-on');
@@ -125,48 +138,13 @@
     if (focusBack && focusBack.focus) focusBack.focus();
   }
 
-  // page grid
-  function buildGrid() {
-    if (gridBuilt) return;
-    gridBuilt = true;
-    var html = '';
-    B.sections.forEach(function (s) {
-      html += '<h3>' + s.name + '</h3><ul>';
-      for (var n = s.from; n <= s.to; n++) {
-        html += '<li><a href="#ms-' + n + '" data-go="' + n + '"><img src="' + B.img(n, 240) + '" width="240" height="339" alt="" loading="lazy"><span>' + n + '</span></a></li>';
-      }
-      html += '</ul>';
-    });
-    grid.querySelector('.rd-grid-in').innerHTML = html;
-  }
-  function openGrid() {
-    buildGrid();
-    grid.hidden = false;
-    gridBtn.setAttribute('aria-expanded', 'true');
-    Array.prototype.forEach.call(grid.querySelectorAll('a'), function (a) {
-      var on = pagesFor(page).indexOf(+a.getAttribute('data-go')) > -1;
-      a.classList.toggle('on', on);
-      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-    });
-    var cur = grid.querySelector('a.on');
-    if (cur) { cur.scrollIntoView({ block: 'center' }); cur.focus(); }
-  }
-  function closeGrid() {
-    if (grid.hidden) return;
-    grid.hidden = true;
-    gridBtn.setAttribute('aria-expanded', 'false');
-  }
-  grid.addEventListener('click', function (e) {
-    var a = e.target.closest('[data-go]');
-    if (!a) return;
-    e.preventDefault();
-    closeGrid();
-    go(+a.getAttribute('data-go'));
-  });
-
   R.addEventListener('click', function (e) {
     if (e.target.closest('[data-close]')) close();
-    else if (e.target.closest('[data-grid]')) { if (grid.hidden) openGrid(); else closeGrid(); }
+    else if (e.target.closest('[data-view]')) {
+      single = !single;
+      try { localStorage.setItem('buletin-view', single ? '1' : '0'); } catch (err) {}
+      go(page);
+    }
     else if (e.target.closest('[data-prev]')) prev();
     else if (e.target.closest('[data-next]')) next();
   });
@@ -176,7 +154,7 @@
     var k = e.key;
     if (k === 'Escape') {
       e.preventDefault();
-      if (!grid.hidden) closeGrid(); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
+      if (zoom.s > 1) setZoom(1, 0, 0); else close();
       return;
     }
     if (k === 'Tab') { // keep focus inside the reader
@@ -189,7 +167,12 @@
       else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
       return;
     }
-    if (!grid.hidden) return;
+    if (fit && (k === 'ArrowDown' || k === 'ArrowUp' || k === 'PageDown' || k === 'PageUp' || k === ' ')) {
+      e.preventDefault(); // scroll down/up the page
+      var step = (k === 'ArrowDown' || k === 'ArrowUp') ? 80 : view.clientHeight * 0.85;
+      view.scrollBy({ top: (k === 'ArrowUp' || k === 'PageUp' || (k === ' ' && e.shiftKey)) ? -step : step, behavior: 'smooth' });
+      return;
+    }
     if (k === 'ArrowRight' || k === 'PageDown') { e.preventDefault(); next(); }
     else if (k === 'ArrowLeft' || k === 'PageUp') { e.preventDefault(); prev(); }
     else if (k === 'Home') { e.preventDefault(); go(1); }
@@ -204,6 +187,8 @@
   }
   stage.addEventListener('pointerdown', function (e) {
     if (e.button && e.button !== 0) return;
+    if (e.target.closest('button, a')) return; // the side arrows are inside the stage
+    if (fit) return; // fit-to-width: the browser's own scrolling
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
     try { stage.setPointerCapture(e.pointerId); } catch (err) {}
     var ids = Object.keys(pts);
@@ -247,8 +232,8 @@
     if (zoom.s === 1) view.style.transform = '';
     if (!moved) {
       var now = Date.now(), c = centre(e);
-      if (e.pointerType === 'mouse') { if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(2.5, c.x, c.y); }
-      else if (now - lastTap < 320) { lastTap = 0; if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(2.5, c.x, c.y); }
+      if (e.pointerType === 'mouse') { if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(ZOOM, c.x, c.y); }
+      else if (now - lastTap < 320) { lastTap = 0; if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(ZOOM, c.x, c.y); }
       else lastTap = now;
       return;
     }
@@ -259,19 +244,22 @@
   stage.addEventListener('pointerup', up);
   stage.addEventListener('pointercancel', up);
   stage.addEventListener('wheel', function (e) {
-    if (!e.ctrlKey) return; // trackpad pinch
+    if (!e.ctrlKey || fit) return; // trackpad pinch
     e.preventDefault();
     var c = centre(e);
-    zoomAt(zoom.s * Math.exp(-e.deltaY / 100), c.x, c.y);
+    zoomAt(zoom.s * Math.exp(-e.deltaY / 200), c.x, c.y);
     if (zoom.s < 1.05) setZoom(1, 0, 0);
   }, { passive: false });
 
+  // window resized or phone/tablet rotated: re-lay the pages (and switch between one page and spreads)
   var rt;
-  window.addEventListener('resize', function () {
+  function onResize() {
     if (!isOpen) return;
     clearTimeout(rt);
-    rt = setTimeout(function () { if (useSpread() !== spread) render(); else { layout(); setZoom(1, 0, 0); } }, 120);
-  });
+    rt = setTimeout(function () { setViewBtn(); if (useSpread() !== spread || useFit() !== fit) render(); else { layout(); setZoom(1, 0, 0); } }, 120);
+  }
+  window.addEventListener('resize', onResize);
+  if ('ResizeObserver' in window) new ResizeObserver(onResize).observe(stage);
 
   function fromHash() {
     var m = /^#ms-(\d+)$/.exec(location.hash);
