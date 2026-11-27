@@ -35,13 +35,9 @@
     }
   }
 
+  // Kongsi: copies the site's address (user, 27 Nov: "Just make it copy the URL")
   btn.addEventListener('click', function () {
-    var url = location.href.split('#')[0].split('?')[0];
-    if (navigator.share) {
-      navigator.share({ title: 'Buletin JKEES 2026', text: 'Buletin JKEES 2026 · Setahun yang Gemilang', url: url }).catch(function () {});
-    } else {
-      copy(url);
-    }
+    copy(location.href.split('#')[0].split('?')[0]);
   });
 })();
 
