@@ -157,9 +157,11 @@
       im.src = B.img(n, 800);
       view.appendChild(im);
     });
+    var keep = fit ? 1 : zoom.s; // a zoom the reader chose stays when turning pages
     setZoom(1, 0, 0);
     if (fit) view.style.transform = '';
     layout();
+    if (keep > 1) setZoom(keep, 0, 1e6); // same zoom, at the top of the new page(s)
     view.scrollTop = 0;
     view.scrollLeft = (view.scrollWidth - view.clientWidth) / 2;
     showFz();
@@ -185,6 +187,7 @@
       R.hidden = false;
       document.documentElement.classList.add('rd-on');
       isOpen = true;
+      zoom.s = 1; fz = 1; // every opening starts at 100%
       R.querySelector('[data-close]').focus();
     }
     go(p);
@@ -205,6 +208,7 @@
     else if (e.target.closest('[data-view]')) {
       single = !single;
       try { localStorage.setItem('buletin-view', single ? '1' : '0'); } catch (err) {}
+      zoom.s = 1;
       go(page);
     }
     else if (e.target.closest('[data-prev]')) prev();
@@ -357,7 +361,7 @@
   function onResize() {
     if (!isOpen) return;
     clearTimeout(rt);
-    rt = setTimeout(function () { setViewBtn(); if (useSpread() !== spread || useFit() !== fit) render(); else { layout(); setZoom(1, 0, 0); } }, 120);
+    rt = setTimeout(function () { setViewBtn(); if (useSpread() !== spread || useFit() !== fit) render(); else { layout(); setZoom(zoom.s, zoom.x, zoom.y); } }, 120);
   }
   window.addEventListener('resize', onResize);
   if ('ResizeObserver' in window) new ResizeObserver(onResize).observe(stage);

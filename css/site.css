@@ -145,7 +145,6 @@ footer a{color:var(--cream)}
 .rd-page{display:block;max-width:none;background:#f4f1ec;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-user-drag:none}
 .rd-side{position:absolute;top:50%;transform:translateY(-50%);z-index:2;font-size:28px!important;padding:14px 16px!important;border-radius:50%!important;background:rgba(16,36,31,.7)!important}
 .rd-side[data-prev]{left:14px}.rd-side[data-next]{right:14px}
-.rd.zoomed .rd-side{display:none}
 @media (max-width:899px){.rd-side{display:none}.rd-title{display:none}.rd-top{justify-content:space-between}}
 @media (max-width:380px){.rd button,.rd a.rd-b{padding:8px 10px;font-size:13px}}
 .fbf{margin-top:12px!important}
