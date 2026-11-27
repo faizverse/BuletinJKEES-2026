@@ -77,16 +77,27 @@
   }
 
   // fitted page: zoom to fz keeping the point (cx, cy) of the view (px from its top-left) still
+  // one-page view: zoom out as far as the whole page fitting the screen height
+  function minFz() {
+    var base = Math.min(stage.clientWidth - 160, FITMAX);
+    var whole = Math.max(100, view.clientHeight - 64) * RATIO; // page width at which its full height fits
+    return Math.min(1, whole / base);
+  }
+  function fitSteps() {
+    var m = minFz(), s = [m];
+    if (0.75 > m + 0.05) s.push(0.75);
+    return s.concat(FITZ.filter(function (v) { return v > m + 0.001; }));
+  }
   function showFz() { // the − 100% + control shows the zoom of whichever view is on
     var z = fit ? fz : zoom.s;
     zoomPct.textContent = Math.round(z * 100) + '%';
-    R.querySelector('[data-zout]').disabled = z <= FITZ[0] + 0.001;
+    R.querySelector('[data-zout]').disabled = z <= (fit ? minFz() : FITZ[0]) + 0.001;
     R.querySelector('[data-zin]').disabled = z >= FITZ[FITZ.length - 1] - 0.001;
     R.classList.toggle('fz', fit && fz > 1);
   }
   function fitZoom(z, cx, cy) {
-    z = Math.max(FITZ[0], Math.min(FITZ[FITZ.length - 1], z));
-    if (!fit || z === fz) return;
+    z = Math.max(minFz(), Math.min(FITZ[FITZ.length - 1], z));
+    if (!fit || Math.abs(z - fz) < 0.001) return;
     var im = view.querySelector('img');
     if (cx == null) { cx = view.clientWidth / 2; cy = view.clientHeight / 2; }
     var off0 = im.offsetLeft, top0 = im.offsetTop;
@@ -106,9 +117,10 @@
     if (t === 1) setZoom(1, 0, 0); else zoomAt(t, 0, 0);
   }
   function fitStep(dir) {
-    var i = FITZ.indexOf(fz);
-    if (i < 0) i = FITZ.reduce(function (b, v, j) { return Math.abs(v - fz) < Math.abs(FITZ[b] - fz) ? j : b; }, 0);
-    fitZoom(FITZ[Math.max(0, Math.min(FITZ.length - 1, i + dir))]);
+    var st = fitSteps(), t = dir > 0
+      ? st.filter(function (v) { return v > fz + 0.01; })[0]
+      : st.filter(function (v) { return v < fz - 0.01; }).pop();
+    if (t != null) fitZoom(t);
   }
 
   function preload(p) {
@@ -200,7 +212,7 @@
     var k = e.key;
     if (k === 'Escape') {
       e.preventDefault();
-      if (fit && fz > 1) fitZoom(1); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
+      if (fit && Math.abs(fz - 1) > 0.001) fitZoom(1); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
       return;
     }
     if (k === 'Tab') { // keep focus inside the reader
@@ -285,7 +297,7 @@
       R.classList.remove('drag');
       if (!d.moved && e.type === 'pointerup') {
         var vr = view.getBoundingClientRect();
-        fitZoom(fz > 1 ? 1 : 1.5, e.clientX - vr.left, e.clientY - vr.top);
+        fitZoom(Math.abs(fz - 1) > 0.001 ? 1 : 1.5, e.clientX - vr.left, e.clientY - vr.top);
       }
       return;
     }
