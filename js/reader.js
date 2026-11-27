@@ -1,13 +1,15 @@
 /* Buletin JKEES 2026: the page reader.
    Opens over the page from any link to #ms-N (N = 1..55). Phone: one page at a time, swipe, pinch or double-tap
    to zoom. Computer (wide screens): two-page spreads (1, 2–3, 4–5 … 54–55), arrow keys, click to zoom.
-   Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser).
+   Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser);
+   there it zooms by widening the page. Both views on wide screens: click, the − 100% + buttons, the − / + / 0 keys
+   or a trackpad pinch to zoom, and drag to move around a zoomed page.
    Loads only the pages on screen and the next/previous ones. */
 (function () {
   var B = window.BULETIN;
   var R = document.getElementById('reader');
   if (!B || !R) return;
-  var N = B.pages, RATIO = 1600 / 2263, ZOOM = 1.6, ZMAX = 3, FITMAX = 960;
+  var N = B.pages, RATIO = 1600 / 2263, ZOOM = 1.5, ZMAX = 3, FITMAX = 960, FITZ = [1, 1.25, 1.5, 1.75, 2];
   var stage = R.querySelector('.rd-stage');
   var view = R.querySelector('.rd-view');
   var count = R.querySelector('.rd-count');
@@ -15,6 +17,8 @@
   var prevBtns = R.querySelectorAll('[data-prev]');
   var nextBtns = R.querySelectorAll('[data-next]');
   var viewBtn = R.querySelector('[data-view]');
+  var zoomBox = R.querySelector('.rd-zoom');
+  var zoomPct = R.querySelector('.rd-zpct');
   var page = 1, spread = false, isOpen = false, scrollBack = 0, focusBack = null;
   var single = false; // the reader's choice of one page at a time on wide screens
   try { single = localStorage.getItem('buletin-view') === '1'; } catch (err) {}
@@ -22,12 +26,13 @@
 
   function wide() { return window.innerWidth >= 900 && window.innerWidth > window.innerHeight * 1.1; }
   function useSpread() { return wide() && !single; }
-  // one page on a wide screen: fit the page to the width and scroll down it (no click-zoom)
+  // one page on a wide screen: fit the page to the width and scroll down it; zoom widens the page
   function useFit() { return wide() && single; }
-  var fit = false;
+  var fit = false, fz = 1; // fz: zoom of the fitted page (1 = fitted to the width)
   function setViewBtn() {
     viewBtn.hidden = !wide();
     viewBtn.textContent = single ? 'Paparan 2 halaman' : 'Paparan 1 halaman';
+    zoomBox.hidden = !wide(); // computers: both views (phones pinch)
   }
   function pagesFor(p) {
     if (!spread || p === 1) return [p];
@@ -46,6 +51,7 @@
     zoom.y = s === 1 ? 0 : Math.max(-my, Math.min(my, y));
     view.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.s + ')';
     R.classList.toggle('zoomed', s > 1);
+    showFz();
     if (s > 1) {
       // sharper image while zoomed
       Array.prototype.forEach.call(view.querySelectorAll('img'), function (im) {
@@ -62,11 +68,47 @@
 
   function layout() {
     var w = stage.clientWidth, h = stage.clientHeight, imgs = view.querySelectorAll('img');
-    var pw = fit ? Math.min(w - 160, FITMAX) : Math.min(h * RATIO, w / imgs.length);
+    var pw = fit ? Math.min(w - 160, FITMAX) * fz : Math.min(h * RATIO, w / imgs.length);
     Array.prototype.forEach.call(imgs, function (im) {
+      if (fit) im.sizes = Math.ceil(pw) + 'px';
       im.style.width = Math.floor(pw) + 'px';
       im.style.height = Math.floor(pw / RATIO) + 'px';
     });
+  }
+
+  // fitted page: zoom to fz keeping the point (cx, cy) of the view (px from its top-left) still
+  function showFz() { // the − 100% + control shows the zoom of whichever view is on
+    var z = fit ? fz : zoom.s;
+    zoomPct.textContent = Math.round(z * 100) + '%';
+    R.querySelector('[data-zout]').disabled = z <= FITZ[0] + 0.001;
+    R.querySelector('[data-zin]').disabled = z >= FITZ[FITZ.length - 1] - 0.001;
+    R.classList.toggle('fz', fit && fz > 1);
+  }
+  function fitZoom(z, cx, cy) {
+    z = Math.max(FITZ[0], Math.min(FITZ[FITZ.length - 1], z));
+    if (!fit || z === fz) return;
+    var im = view.querySelector('img');
+    if (cx == null) { cx = view.clientWidth / 2; cy = view.clientHeight / 2; }
+    var off0 = im.offsetLeft, top0 = im.offsetTop;
+    var px = view.scrollLeft + cx - off0, py = view.scrollTop + cy - top0, k = z / fz;
+    fz = z;
+    layout();
+    view.scrollLeft = px * k + im.offsetLeft - cx;
+    view.scrollTop = py * k + im.offsetTop - cy;
+    showFz();
+  }
+  function zoomStep(dir) {
+    if (fit) { fitStep(dir); return; }
+    var z = zoom.s, t = dir > 0
+      ? FITZ.filter(function (v) { return v > z + 0.01; })[0]
+      : FITZ.filter(function (v) { return v < z - 0.01; }).pop();
+    if (t == null) return;
+    if (t === 1) setZoom(1, 0, 0); else zoomAt(t, 0, 0);
+  }
+  function fitStep(dir) {
+    var i = FITZ.indexOf(fz);
+    if (i < 0) i = FITZ.reduce(function (b, v, j) { return Math.abs(v - fz) < Math.abs(FITZ[b] - fz) ? j : b; }, 0);
+    fitZoom(FITZ[Math.max(0, Math.min(FITZ.length - 1, i + dir))]);
   }
 
   function preload(p) {
@@ -101,6 +143,8 @@
     if (fit) view.style.transform = '';
     layout();
     view.scrollTop = 0;
+    view.scrollLeft = (view.scrollWidth - view.clientWidth) / 2;
+    showFz();
     var last = ps[ps.length - 1];
     count.textContent = (ps.length > 1 ? ps[0] + '–' + last : ps[0]) + ' / ' + N;
     title.textContent = ps.map(function (n) { return B.titles[n]; })
@@ -147,6 +191,8 @@
     }
     else if (e.target.closest('[data-prev]')) prev();
     else if (e.target.closest('[data-next]')) next();
+    else if (e.target.closest('[data-zin]')) zoomStep(1);
+    else if (e.target.closest('[data-zout]')) zoomStep(-1);
   });
 
   document.addEventListener('keydown', function (e) {
@@ -154,7 +200,7 @@
     var k = e.key;
     if (k === 'Escape') {
       e.preventDefault();
-      if (zoom.s > 1) setZoom(1, 0, 0); else close();
+      if (fit && fz > 1) fitZoom(1); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
       return;
     }
     if (k === 'Tab') { // keep focus inside the reader
@@ -167,6 +213,9 @@
       else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
       return;
     }
+    if (k === '+' || k === '=') { e.preventDefault(); zoomStep(1); return; }
+    if (k === '-' || k === '_') { e.preventDefault(); zoomStep(-1); return; }
+    if (k === '0') { e.preventDefault(); if (fit) fitZoom(1); else setZoom(1, 0, 0); return; }
     if (fit && (k === 'ArrowDown' || k === 'ArrowUp' || k === 'PageDown' || k === 'PageUp' || k === ' ')) {
       e.preventDefault(); // scroll down/up the page
       var step = (k === 'ArrowDown' || k === 'ArrowUp') ? 80 : view.clientHeight * 0.85;
@@ -180,7 +229,7 @@
   });
 
   // touch and mouse: swipe, drag to pan, pinch, double-tap or click to zoom
-  var pts = {}, start = null, pinch = null, lastTap = 0, moved = false;
+  var pts = {}, start = null, pinch = null, lastTap = 0, moved = false, fdrag = null;
   function centre(e) {
     var r = stage.getBoundingClientRect();
     return { x: e.clientX - r.left - r.width / 2, y: e.clientY - r.top - r.height / 2 };
@@ -188,7 +237,12 @@
   stage.addEventListener('pointerdown', function (e) {
     if (e.button && e.button !== 0) return;
     if (e.target.closest('button, a')) return; // the side arrows are inside the stage
-    if (fit) return; // fit-to-width: the browser's own scrolling
+    if (fit) {
+      if (e.pointerType !== 'mouse') return; // touch: the browser's own scrolling
+      fdrag = { x: e.clientX, y: e.clientY, sl: view.scrollLeft, st: view.scrollTop, moved: false };
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+      return;
+    }
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
     try { stage.setPointerCapture(e.pointerId); } catch (err) {}
     var ids = Object.keys(pts);
@@ -204,6 +258,12 @@
     }
   });
   stage.addEventListener('pointermove', function (e) {
+    if (fdrag) {
+      var ddx = e.clientX - fdrag.x, ddy = e.clientY - fdrag.y;
+      if (Math.abs(ddx) > 4 || Math.abs(ddy) > 4) { fdrag.moved = true; R.classList.add('drag'); }
+      if (fdrag.moved) { view.scrollLeft = fdrag.sl - ddx; view.scrollTop = fdrag.st - ddy; }
+      return;
+    }
     if (!pts[e.pointerId]) return;
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
     var ids = Object.keys(pts);
@@ -219,6 +279,16 @@
     else view.style.transform = 'translateX(' + dx * 0.35 + 'px)';
   });
   function up(e) {
+    if (fdrag) {
+      var d = fdrag;
+      fdrag = null;
+      R.classList.remove('drag');
+      if (!d.moved && e.type === 'pointerup') {
+        var vr = view.getBoundingClientRect();
+        fitZoom(fz > 1 ? 1 : 1.5, e.clientX - vr.left, e.clientY - vr.top);
+      }
+      return;
+    }
     if (!pts[e.pointerId]) return;
     delete pts[e.pointerId];
     var left = Object.keys(pts).length;
@@ -244,8 +314,13 @@
   stage.addEventListener('pointerup', up);
   stage.addEventListener('pointercancel', up);
   stage.addEventListener('wheel', function (e) {
-    if (!e.ctrlKey || fit) return; // trackpad pinch
+    if (!e.ctrlKey) return; // trackpad pinch
     e.preventDefault();
+    if (fit) {
+      var vr = view.getBoundingClientRect();
+      fitZoom(fz * Math.exp(-e.deltaY / 200), e.clientX - vr.left, e.clientY - vr.top);
+      return;
+    }
     var c = centre(e);
     zoomAt(zoom.s * Math.exp(-e.deltaY / 200), c.x, c.y);
     if (zoom.s < 1.05) setZoom(1, 0, 0);
