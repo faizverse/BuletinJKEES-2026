@@ -44,3 +44,34 @@
     }
   });
 })();
+
+// trailer: YouTube loads only when tapped
+(function () {
+  var b = document.querySelector('.yt-play');
+  if (!b) return;
+  b.addEventListener('click', function () {
+    var f = document.createElement('iframe');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-id') + '?autoplay=1&controls=1&rel=0&playsinline=1';
+    f.title = 'Buletin JKEES 2026: Setahun yang Gemilang (Video Imbasan)';
+    f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    f.allowFullscreen = true;
+    b.parentNode.replaceChild(f, b);
+  });
+})();
+
+// phone: the "Baca buletin" bar appears once the hero has scrolled away
+(function () {
+  var bar = document.getElementById('bar'), hero = document.querySelector('.hero');
+  if (!bar || !hero || !('IntersectionObserver' in window)) return;
+  // hidden while the hero or the trailer is on screen, so it never covers the video's controls
+  var trailer = document.getElementById('treler'), seen = {};
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { seen[e.target === hero ? 'hero' : 'treler'] = e.isIntersecting; });
+    var on = !seen.hero && !seen.treler;
+    bar.classList.toggle('on', on);
+    bar.setAttribute('aria-hidden', on ? 'false' : 'true');
+    bar.tabIndex = on ? 0 : -1;
+  });
+  io.observe(hero);
+  if (trailer) io.observe(trailer);
+})();
