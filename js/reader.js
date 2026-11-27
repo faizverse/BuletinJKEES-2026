@@ -2,8 +2,8 @@
    Opens over the page from any link to #ms-N (N = 1..55). Phone: one page at a time, swipe, pinch or double-tap
    to zoom. Computer (wide screens): two-page spreads (1, 2–3, 4–5 … 54–55), arrow keys, click to zoom.
    Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser);
-   there it zooms by widening the page. Both views on wide screens: click, the − 100% + buttons, the − / + / 0 keys
-   or a trackpad pinch to zoom; drag or two-finger scroll to move around a zoomed page.
+   there it opens at 75% and zooms by widening the page. Both views on wide screens: click (one step in, like +; at
+   200% back to the start), the − 100% + buttons, the − / + / 0 keys or a trackpad pinch to zoom; drag or two-finger scroll to move around a zoomed page.
    Loads only the pages on screen and the next/previous ones. */
 (function () {
   var B = window.BULETIN;
@@ -29,6 +29,8 @@
   // one page on a wide screen: fit the page to the width and scroll down it; zoom widens the page
   function useFit() { return wide() && single; }
   var fit = false, fz = 1; // fz: zoom of the fitted page (1 = fitted to the width)
+  var FITDEF = 0.75, fzUnset = true; // the one-page view opens at 75% (user, 27 Nov)
+  function fitDefault() { return Math.max(minFz(), FITDEF); }
   function setViewBtn() {
     viewBtn.hidden = !wide();
     viewBtn.textContent = single ? 'Paparan 2 halaman' : 'Paparan 1 halaman';
@@ -57,6 +59,7 @@
     zoom.y = s === 1 ? 0 : Math.max(-my, Math.min(my, y));
     view.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.s + ')';
     R.classList.toggle('zoomed', s > 1);
+    R.classList.toggle('zmax', s >= FITZ[FITZ.length - 1] - 0.001);
     showFz();
     if (s > 1) {
       // sharper image while zoomed
@@ -99,7 +102,7 @@
     zoomPct.textContent = Math.round(z * 100) + '%';
     R.querySelector('[data-zout]').disabled = z <= (fit ? minFz() : FITZ[0]) + 0.001;
     R.querySelector('[data-zin]').disabled = z >= FITZ[FITZ.length - 1] - 0.001;
-    R.classList.toggle('fz', fit && fz > 1);
+    R.classList.toggle('fz', fit && fz >= FITZ[FITZ.length - 1] - 0.001);
   }
   function fitZoom(z, cx, cy) {
     z = Math.max(minFz(), Math.min(FITZ[FITZ.length - 1], z));
@@ -143,6 +146,7 @@
     fit = useFit();
     R.classList.toggle('fit', fit);
     setViewBtn();
+    if (fit && fzUnset) { fz = fitDefault(); fzUnset = false; }
     var ps = pagesFor(page);
     page = ps[0];
     view.innerHTML = '';
@@ -187,7 +191,7 @@
       R.hidden = false;
       document.documentElement.classList.add('rd-on');
       isOpen = true;
-      zoom.s = 1; fz = 1; // every opening starts at 100%
+      zoom.s = 1; fzUnset = true; // every opening starts at the default zoom
       R.querySelector('[data-close]').focus();
     }
     go(p);
@@ -208,7 +212,7 @@
     else if (e.target.closest('[data-view]')) {
       single = !single;
       try { localStorage.setItem('buletin-view', single ? '1' : '0'); } catch (err) {}
-      zoom.s = 1;
+      zoom.s = 1; fzUnset = true; // a newly chosen view starts at its default zoom
       go(page);
     }
     else if (e.target.closest('[data-prev]')) prev();
@@ -222,7 +226,7 @@
     var k = e.key;
     if (k === 'Escape') {
       e.preventDefault();
-      if (fit && Math.abs(fz - 1) > 0.001) fitZoom(1); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
+      if (fit && Math.abs(fz - fitDefault()) > 0.001) fitZoom(fitDefault()); else if (zoom.s > 1) setZoom(1, 0, 0); else close();
       return;
     }
     if (k === 'Tab') { // keep focus inside the reader
@@ -237,7 +241,7 @@
     }
     if (k === '+' || k === '=') { e.preventDefault(); zoomStep(1); return; }
     if (k === '-' || k === '_') { e.preventDefault(); zoomStep(-1); return; }
-    if (k === '0') { e.preventDefault(); if (fit) fitZoom(1); else setZoom(1, 0, 0); return; }
+    if (k === '0') { e.preventDefault(); if (fit) fitZoom(fitDefault()); else setZoom(1, 0, 0); return; }
     if (fit && (k === 'ArrowDown' || k === 'ArrowUp' || k === 'PageDown' || k === 'PageUp' || k === ' ')) {
       e.preventDefault(); // scroll down/up the page
       var step = (k === 'ArrowDown' || k === 'ArrowUp') ? 80 : view.clientHeight * 0.85;
@@ -307,7 +311,8 @@
       R.classList.remove('drag');
       if (!d.moved && e.type === 'pointerup') {
         var vr = view.getBoundingClientRect();
-        fitZoom(Math.abs(fz - 1) > 0.001 ? 1 : 1.5, e.clientX - vr.left, e.clientY - vr.top);
+        var up = fitSteps().filter(function (v) { return v > fz + 0.01; })[0];
+        fitZoom(up != null ? up : fitDefault(), e.clientX - vr.left, e.clientY - vr.top);
       }
       return;
     }
@@ -324,7 +329,10 @@
     if (zoom.s === 1) view.style.transform = '';
     if (!moved) {
       var now = Date.now(), c = centre(e);
-      if (e.pointerType === 'mouse') { if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(ZOOM, c.x, c.y); }
+      if (e.pointerType === 'mouse') { // click: one step in at that point, like +; at the largest zoom, back to 100%
+        var up = FITZ.filter(function (v) { return v > zoom.s + 0.01; })[0];
+        if (up != null) zoomAt(up, c.x, c.y); else setZoom(1, 0, 0);
+      }
       else if (now - lastTap < 320) { lastTap = 0; if (zoom.s > 1) setZoom(1, 0, 0); else zoomAt(ZOOM, c.x, c.y); }
       else lastTap = now;
       return;

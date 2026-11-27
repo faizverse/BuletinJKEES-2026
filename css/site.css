@@ -140,7 +140,8 @@ footer a{color:var(--cream)}
 .rd-count{font-weight:700;font-variant-numeric:tabular-nums;min-width:84px;text-align:center}
 .rd-bot button{font-size:20px;line-height:1;padding:8px 18px}
 .rd-stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:zoom-in}
-.rd.zoomed .rd-stage{cursor:grab}
+.rd.zoomed .rd-stage{cursor:zoom-in}
+.rd.zmax .rd-stage{cursor:zoom-out}
 .rd-view{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
 .rd-page{display:block;max-width:none;background:#f4f1ec;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-user-drag:none}
 .rd-side{position:absolute;top:50%;transform:translateY(-50%);z-index:2;font-size:28px!important;padding:14px 16px!important;border-radius:50%!important;background:rgba(16,36,31,.7)!important}
