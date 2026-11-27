@@ -4,11 +4,13 @@
    Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser);
    there it opens at 75% and zooms by widening the page. Both views on wide screens: click (one step in, like +; at
    200% back to the start), the − 100% + buttons, the − / + / 0 keys or a trackpad pinch to zoom; drag or two-finger scroll to move around a zoomed page.
-   Loads only the pages on screen and the next/previous ones. */
+   A phone held sideways shows one page fitted to the width. Links inside the pages (video, contents rows,
+   "← Kandungan", "Seterusnya →") are tappable (js/pautan.js). Loads only the pages on screen and the next/previous ones. */
 (function () {
   var B = window.BULETIN;
   var R = document.getElementById('reader');
   if (!B || !R) return;
+  var LINKS = window.BULETIN_LINKS || {};
   var N = B.pages, RATIO = 1600 / 2263, ZOOM = 1.5, ZMAX = 3, FITMAX = 960, FITZ = [1, 1.25, 1.5, 1.75, 2];
   var stage = R.querySelector('.rd-stage');
   var view = R.querySelector('.rd-view');
@@ -24,17 +26,24 @@
   try { single = localStorage.getItem('buletin-view') === '1'; } catch (err) {}
   var zoom = { s: 1, x: 0, y: 0 };
 
-  function wide() { return window.innerWidth >= 900 && window.innerWidth > window.innerHeight * 1.1; }
+  // a phone held sideways: too short for a whole page, so one page fitted to the width and scrolled
+  function sideways() { return window.innerWidth > window.innerHeight && window.innerHeight < 500; }
+  function wide() { return window.innerWidth >= 900 && window.innerWidth > window.innerHeight * 1.1 && !sideways(); }
   function useSpread() { return wide() && !single; }
   // one page on a wide screen: fit the page to the width and scroll down it; zoom widens the page
-  function useFit() { return wide() && single; }
+  function useFit() { return sideways() || (wide() && single); }
   var fit = false, fz = 1; // fz: zoom of the fitted page (1 = fitted to the width)
   var FITDEF = 0.75, fzUnset = true; // the one-page view opens at 75% (user, 27 Nov)
-  function fitDefault() { return Math.max(minFz(), FITDEF); }
+  function fitDefault() { return sideways() ? 1 : Math.max(minFz(), FITDEF); }
+  function fitBase() { // page width at 100%: the width, less room for the side arrows when they show
+    var side = R.querySelector('.rd-side');
+    var room = side && getComputedStyle(side).display !== 'none' ? 160 : 24;
+    return Math.min(stage.clientWidth - room, FITMAX);
+  }
   function setViewBtn() {
     viewBtn.hidden = !wide();
     viewBtn.textContent = single ? 'Paparan 2 halaman' : 'Paparan 1 halaman';
-    zoomBox.hidden = !wide(); // computers: both views (phones pinch)
+    zoomBox.hidden = !wide() && !sideways(); // computers (both views) and phones held sideways
   }
   function pagesFor(p) {
     if (!spread || p === 1) return [p];
@@ -49,8 +58,8 @@
     s = Math.max(1, Math.min(ZMAX, s));
     // how far the zoomed pages can move: only as far as their own edges (not into empty space)
     var cw = 0, ch = 0;
-    Array.prototype.forEach.call(view.querySelectorAll('img'), function (im) {
-      cw += im.offsetWidth; ch = Math.max(ch, im.offsetHeight);
+    Array.prototype.forEach.call(view.querySelectorAll('.rd-pg'), function (pg) {
+      cw += pg.offsetWidth; ch = Math.max(ch, pg.offsetHeight);
     });
     if (!cw) { cw = w; ch = h; }
     var mx = Math.max(0, (cw * s - w) / 2), my = Math.max(0, (ch * s - h) / 2);
@@ -76,19 +85,19 @@
   }
 
   function layout() {
-    var w = stage.clientWidth, h = stage.clientHeight, imgs = view.querySelectorAll('img');
-    var pw = fit ? Math.min(w - 160, FITMAX) * fz : Math.min(h * RATIO, w / imgs.length);
-    Array.prototype.forEach.call(imgs, function (im) {
-      if (fit) im.sizes = Math.ceil(pw) + 'px';
-      im.style.width = Math.floor(pw) + 'px';
-      im.style.height = Math.floor(pw / RATIO) + 'px';
+    var w = stage.clientWidth, h = stage.clientHeight, pgs = view.querySelectorAll('.rd-pg');
+    var pw = fit ? fitBase() * fz : Math.min(h * RATIO, w / pgs.length);
+    Array.prototype.forEach.call(pgs, function (pg) {
+      if (fit) pg.firstChild.sizes = Math.ceil(pw) + 'px';
+      pg.style.width = Math.floor(pw) + 'px';
+      pg.style.height = Math.floor(pw / RATIO) + 'px';
     });
   }
 
   // fitted page: zoom to fz keeping the point (cx, cy) of the view (px from its top-left) still
   // one-page view: zoom out as far as the whole page fitting the screen height
   function minFz() {
-    var base = Math.min(stage.clientWidth - 160, FITMAX);
+    var base = fitBase();
     var whole = Math.max(100, view.clientHeight - 64) * RATIO; // page width at which its full height fits
     return Math.min(1, whole / base);
   }
@@ -107,7 +116,7 @@
   function fitZoom(z, cx, cy) {
     z = Math.max(minFz(), Math.min(FITZ[FITZ.length - 1], z));
     if (!fit || Math.abs(z - fz) < 0.001) return;
-    var im = view.querySelector('img');
+    var im = view.querySelector('.rd-pg');
     if (cx == null) { cx = view.clientWidth / 2; cy = view.clientHeight / 2; }
     var off0 = im.offsetLeft, top0 = im.offsetTop;
     var px = view.scrollLeft + cx - off0, py = view.scrollTop + cy - top0, k = z / fz;
@@ -159,7 +168,22 @@
       im.sizes = fit ? FITMAX + 'px' : ps.length > 1 ? '50vw' : '100vw';
       im.srcset = B.img(n, 800) + ' 800w, ' + B.img(n, 1600) + ' 1600w';
       im.src = B.img(n, 800);
-      view.appendChild(im);
+      var pg = document.createElement('div');
+      pg.className = 'rd-pg';
+      pg.appendChild(im);
+      // tappable spots: the bulletin's own links, "← Kandungan", "Seterusnya →" and the contents rows
+      (LINKS[n] || []).forEach(function (s) {
+        var a = document.createElement('a');
+        a.className = 'rd-hot';
+        a.style.left = s[0] * 100 + '%'; a.style.top = s[1] * 100 + '%';
+        a.style.width = (s[2] - s[0]) * 100 + '%'; a.style.height = (s[3] - s[1]) * 100 + '%';
+        a.setAttribute('aria-label', s[5]);
+        a.title = s[5];
+        if (typeof s[4] === 'number') { a.href = '#ms-' + s[4]; a.setAttribute('data-go', s[4]); }
+        else { a.href = s[4]; a.target = '_blank'; a.rel = 'noopener'; }
+        pg.appendChild(a);
+      });
+      view.appendChild(pg);
     });
     var keep = fit ? 1 : zoom.s; // a zoom the reader chose stays when turning pages
     setZoom(1, 0, 0);
@@ -184,8 +208,10 @@
   function next() { var ps = pagesFor(page); if (ps[ps.length - 1] < N) go(ps[ps.length - 1] + 1); }
   function prev() { var ps = pagesFor(page); if (ps[0] > 1) go(pagesFor(ps[0] - 1)[0]); }
 
-  function open(p) {
+  var byLink = false; // opened by a link on this page (that link added a step to the browser's history)
+  function open(p, viaLink) {
     if (!isOpen) {
+      byLink = !!viaLink;
       scrollBack = window.pageYOffset;
       focusBack = document.activeElement;
       R.hidden = false;
@@ -196,8 +222,9 @@
     }
     go(p);
   }
-  function close() {
+  function close(viaHash) {
     if (!isOpen) return;
+    if (byLink && !viaHash) { byLink = false; history.back(); return; } // Tutup/Escape: undo the link's history step
     isOpen = false;
     R.hidden = true;
     view.innerHTML = '';
@@ -208,6 +235,8 @@
   }
 
   R.addEventListener('click', function (e) {
+    var hot = e.target.closest('[data-go]');
+    if (hot) { e.preventDefault(); go(+hot.getAttribute('data-go')); return; }
     if (e.target.closest('[data-close]')) close();
     else if (e.target.closest('[data-view]')) {
       single = !single;
@@ -374,9 +403,9 @@
   window.addEventListener('resize', onResize);
   if ('ResizeObserver' in window) new ResizeObserver(onResize).observe(stage);
 
-  function fromHash() {
+  function fromHash(e) {
     var m = /^#ms-(\d+)$/.exec(location.hash);
-    if (m) open(+m[1]); else if (isOpen) close();
+    if (m) open(+m[1], !!e); else if (isOpen) close(true);
   }
   window.addEventListener('hashchange', fromHash);
   fromHash();
