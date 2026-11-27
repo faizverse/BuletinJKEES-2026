@@ -3,7 +3,7 @@
    to zoom. Computer (wide screens): two-page spreads (1, 2–3, 4–5 … 54–55), arrow keys, click to zoom.
    Wide screens can switch to one page at a time, fitted to the width and scrolled (remembered in this browser);
    there it zooms by widening the page. Both views on wide screens: click, the − 100% + buttons, the − / + / 0 keys
-   or a trackpad pinch to zoom, and drag to move around a zoomed page.
+   or a trackpad pinch to zoom; drag or two-finger scroll to move around a zoomed page.
    Loads only the pages on screen and the next/previous ones. */
 (function () {
   var B = window.BULETIN;
@@ -45,7 +45,13 @@
   function setZoom(s, x, y) {
     var w = stage.clientWidth, h = stage.clientHeight;
     s = Math.max(1, Math.min(ZMAX, s));
-    var mx = (w * (s - 1)) / 2, my = (h * (s - 1)) / 2;
+    // how far the zoomed pages can move: only as far as their own edges (not into empty space)
+    var cw = 0, ch = 0;
+    Array.prototype.forEach.call(view.querySelectorAll('img'), function (im) {
+      cw += im.offsetWidth; ch = Math.max(ch, im.offsetHeight);
+    });
+    if (!cw) { cw = w; ch = h; }
+    var mx = Math.max(0, (cw * s - w) / 2), my = Math.max(0, (ch * s - h) / 2);
     zoom.s = s;
     zoom.x = s === 1 ? 0 : Math.max(-mx, Math.min(mx, x));
     zoom.y = s === 1 ? 0 : Math.max(-my, Math.min(my, y));
@@ -326,7 +332,15 @@
   stage.addEventListener('pointerup', up);
   stage.addEventListener('pointercancel', up);
   stage.addEventListener('wheel', function (e) {
-    if (!e.ctrlKey) return; // trackpad pinch
+    if (!e.ctrlKey) {
+      // two-finger scroll on a trackpad (or a mouse wheel): move around a zoomed spread
+      if (!fit && zoom.s > 1) {
+        e.preventDefault();
+        var k = e.deltaMode === 1 ? 16 : 1; // lines → pixels
+        setZoom(zoom.s, zoom.x - e.deltaX * k, zoom.y - e.deltaY * k);
+      }
+      return; // one-page view scrolls by itself
+    }
     e.preventDefault();
     if (fit) {
       var vr = view.getBoundingClientRect();
